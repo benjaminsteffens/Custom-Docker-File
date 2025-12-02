@@ -1,0 +1,53 @@
+---
+- name: Deploy Docker Image from ECR to EC2 Instance using AWS CLI Credentials
+  hosts: [linux_ec2] 
+  become: yes 
+  vars:
+    ecr_repo_uri: "640168422415.dkr.ecr.us-east-1.amazonaws.com/ben/test:latest"
+    image_tag: "latest"
+    container_name: "my_ecr_test_container"
+    container_port: 8080
+    host_port: 80
+    aws_region: "us-east-1" 
+
+  tasks:
+
+    - name: 1. Get ECR Docker login password
+      ansible.builtin.shell:
+        cmd: "aws ecr get-login-password --region {{ aws_region }}"
+      register: ecr_password_output
+      delegate_to: localhost
+      changed_when: false 
+    - name: 2. Set the ECR login host
+      ansible.builtin.set_fact:
+        ecr_registry_url: "{{ ecr_repo_uri | regex_replace('/.*', '') }}"
+
+    - name: 3. Log in to ECR on the EC2 instance
+      community.general.docker_login:
+        registry_url: "{{ ecr_registry_url }}"
+        username: AWS
+        password: "{{ ecr_password_output.stdout }}"
+        reauthorize: yes
+      no_log: true 
+
+    - name: 4. Ensure old container is stopped and removed (if it exists)
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+        force: yes
+
+    - name: 5. Pull the image from ECR
+      community.docker.docker_image:
+        name: "{{ ecr_repo_uri }}:{{ image_tag }}"
+        pull: yes
+        source: pull
+        state: present
+
+    - name: 6. Run the new container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ ecr_repo_uri }}:{{ image_tag }}"
+        state: started
+        restart_policy: always
+        ports:
+          - "{{ host_port }}:{{ container_port }}"
