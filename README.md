@@ -1,4 +1,4 @@
-🚀 **Ansible AWS Provisioner and Deployment Pipeline**
+🚀#**Ansible AWS Provisioner and Deployment Pipeline**
 This project provides an automated, end-to-end solution for provisioning AWS infrastructure using Terraform, deploying a Dockerized application using Ansible, and orchestrating the entire process via a GitHub Actions workflow.
 
 ✨ Features
