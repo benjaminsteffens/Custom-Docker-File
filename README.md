@@ -45,3 +45,77 @@ The GitHub Actions workflow relies on several repository secrets for authenticat
 ### 1. File Structure
 
 Ensure your repository has the following file structure:
+
+. ├── .github/workflows/ │ └── aws-provisioner.yml # Your GitHub Actions workflow ├── automate.yml # Your Ansible Playbook ├── hosts.ini # Your Ansible Inventory (or named differently) └── main.tf # Your Terraform Configuration
+
+
+> **Note:** The GitHub Actions workflow assumes the Ansible playbook is named `automate.yml`.
+
+### 2. Manual Execution via GitHub Actions
+
+The workflow is configured to run manually using the `workflow_dispatch` trigger.
+
+1.  Navigate to the **Actions** tab in your GitHub repository.
+2.  Select the **Ansible AWS Provisioner** workflow.
+3.  Click **Run workflow** and confirm the branch.
+
+### 3. Workflow Steps (Internal Logic)
+
+The `provision-aws-resources` job executes the following sequence:
+
+1.  **Checkout Code:** Retrieves the repository files.
+2.  **Configure AWS Credentials:** Sets up the AWS CLI environment using the provided secrets for the `us-east-1` region.
+3.  **Install Ansible:** Installs the `ansible` package on the GitHub Actions runner.
+4.  **Execute AWS Playbook:** Runs the core deployment logic using `ansible-playbook automate.yml`.
+
+---
+
+##  Ansible Playbook (`automate.yml`) Overview
+
+The Ansible playbook's primary role is to deploy the Docker image from ECR to the target EC2 instance.
+
+* **Target:** `hosts: [linux_ec2]` (The host defined in your inventory file).
+* **Variables:** Defines `ecr_repo_uri`, `container_name`, ports, and region.
+
+### Deployment Tasks
+
+| Task Name | Description |
+| :--- | :--- |
+| **1. Get ECR Docker login password** | Uses `aws ecr get-login-password` on the **local runner** (`delegate_to: localhost`) to securely fetch a temporary authentication token. |
+| **2. Set the ECR login host** | Extracts the registry URL from the full repository URI. |
+| **3. Log in to ECR on the EC2 instance** | Uses the fetched password to log in to ECR on the **remote EC2 instance**. |
+| **4. Ensure old container is stopped and removed** | Stops and deletes any existing container with the same name. |
+| **5. Pull the image from ECR** | Downloads the latest image from the authenticated ECR repository. |
+| **6. Run the new container** | Starts the new container, ensuring it runs on port **80** on the host, mapping to container port **8080**. |
+
+##  Ansible Inventory (`hosts.ini`)
+
+The inventory file maps the logical host name (`linux_ec2`) to the target EC2 instance and specifies the necessary connection details.
+
+```ini
+[linux_ec2]
+54.162.162.133 \
+    ansible_user=ec2-user \
+    ansible_ssh_private_key_file={{ secrets.ANISBLETESTSECRET }}
+IMPORTANT: You must replace 54.162.162.133 with the public IP address or DNS name of your provisioned EC2 instance.
+
+ Terraform Configuration
+The project includes a basic Terraform resource definition (likely in main.tf) to define the EC2 instance.
+
+Terraform
+
+resource "aws_instance" "bentest" {
+  ami           = "" # AMI ID must be provided here
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "pipelinetest"
+  }
+}
+Note: For a complete solution, you would need to integrate terraform apply into the GitHub Actions workflow before the Ansible playbook runs, and also pass the dynamically created EC2 IP address into the Ansible inventory. This current setup requires the IP to be manually updated in the inventory.
+
+ Contribution
+Feel free to open an issue or submit a pull request if you have suggestions for improvements or encounter bugs.
+
+
+Would you like me to generate a template for the `automate.yml` Ansible Playbook or the GitHub Workflow YAML based on the details you provided?
